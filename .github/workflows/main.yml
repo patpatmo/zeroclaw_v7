@@ -1,0 +1,28 @@
+name: Build ZeroClaw ARMv7 Static
+
+on:
+  workflow_dispatch: # 允许手动点击按钮触发
+
+jobs:
+  build:
+    name: Build ARMv7 Musl
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Compile with Cross Action
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          target: armv7-unknown-linux-musleabihf
+          args: "--release"
+          strip: true
+        env:
+          # 强制 OpenSSL 静态编译，避免找不到动态库
+          OPENSSL_STATIC: '1'
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeroclaw-armv7-static
+          path: target/armv7-unknown-linux-musleabihf/release/zeroclaw
