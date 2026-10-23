@@ -1,28 +1,50 @@
-name: Build ZeroClaw ARMv7 Static
+name: Build ZeroClaw ARMv7 with Web UI
 
 on:
-  workflow_dispatch: # 允许手动点击按钮触发
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   build:
-    name: Build ARMv7 Musl
-    runs-on: ubuntu-latest
+    name: Build ARMv7 Musl + Web
+    # 使用 ubuntu-22.04 确保 glibc 兼容性
+    runs-on: ubuntu-22.04 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Compile with Cross Action
-        uses: houseabsolute/actions-rust-cross@v0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          target: armv7-unknown-linux-musleabihf
-          args: "--release"
-          strip: true
+          node-version: '20' # 编译前端 React/Vite 必需的环境
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: armv7-unknown-linux-musleabihf
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev libsqlite3-dev musl-tools gcc-arm-linux-gnueabihf
+
+      - name: Configure Cargo Linker
+        run: |
+          mkdir -p ~/.cargo
+          echo '[target.armv7-unknown-linux-musleabihf]' >> ~/.cargo/config.toml
+          echo 'linker = "arm-linux-gnueabihf-gcc"' >> ~/.cargo/config.toml
+
+      - name: Build with Cargo (Static + Web UI)
+        # 关键点：加上了 --features embedded-web
+        run: cargo build --release --target armv7-unknown-linux-musleabihf --features embedded-web
         env:
-          # 强制 OpenSSL 静态编译，避免找不到动态库
+          # 强制 OpenSSL 静态链接
           OPENSSL_STATIC: '1'
+          # 加快 Node 依赖下载
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zeroclaw-armv7-static
+          name: zeroclaw-armv7-web
+          # 编译成功后，提取最终的可执行文件
           path: target/armv7-unknown-linux-musleabihf/release/zeroclaw
